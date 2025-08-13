@@ -1,0 +1,7 @@
+[project]
+name = "lang-graph-sandbox"
+version = "0.1.0"
+description = "LangGraph Sandbox"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
