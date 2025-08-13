@@ -32,6 +32,7 @@ class OpenAIAgent(LLMAgent):
 
 if __name__ == "__main__":
     agent = OpenAIAgent()
-    llm = agent.get_lm(model="gpt-4o")
+    llm = agent.get_lm(model="gpt-4o"
+                       )
     response = llm.invoke("Кто ты?")
     print(response.content)
