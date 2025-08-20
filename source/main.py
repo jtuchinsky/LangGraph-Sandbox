@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .config import get_settings, EnvironmentValidator, create_llm_agent, get_best_available_agent
 from .graph import WorkflowGraph
-from .mcp import MCPHost
+from .mcp_clients import MCPHost
 from .memory import ContextMemory
 from .tools import FileSystemTools, WebSearchTools
 from .utils import ErrorHandler

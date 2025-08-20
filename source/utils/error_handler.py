@@ -99,7 +99,7 @@ class ErrorHandler:
             return ErrorType.VALIDATION_ERROR
         
         # MCP errors
-        if "mcp" in component.lower() or "mcp" in error_str:
+        if "mcp_clients" in component.lower() or "mcp_clients" in error_str:
             return ErrorType.MCP_ERROR
         
         # LLM errors
