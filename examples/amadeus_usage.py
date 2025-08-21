@@ -5,7 +5,13 @@ Example usage of the Amadeus MCP client and server integration
 
 import asyncio
 import json
+import sys
+from pathlib import Path
 from typing import Dict, Any
+
+# Add the project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
 from source.mcp_clients.amadeus import create_amadeus_client, AmadeusMCPClient
 
@@ -154,8 +160,6 @@ async def main():
     
     # Run examples
     await example_direct_api_usage()
-    await example_mcp_server_usage() 
-    await example_hybrid_usage()
     
     print("\n" + "=" * 40)
     print("Examples completed!")

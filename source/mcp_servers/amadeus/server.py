@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Literal
 from pydantic import BaseModel, Field, field_validator
 from dotenv import load_dotenv
 
-from mcp_clients.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP
 from ...mcp_clients.amadeus.client import AmadeusAPIClient
 
 # ---------- Server Configuration ----------

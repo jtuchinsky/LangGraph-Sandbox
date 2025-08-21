@@ -1,8 +1,8 @@
 import asyncio
 import json
 from typing import Any, Dict, List, Optional
-from mcp_clients import ClientSession, StdioServerParameters
-from mcp_clients.client.stdio import stdio_client
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
 
 class MCPClient:
