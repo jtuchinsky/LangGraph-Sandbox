@@ -224,12 +224,19 @@ class AmadeusMCPClient:
                     "address": item.get("address"),
                 })
             return {"success": True, "count": len(items), "items": items}
+        except httpx.HTTPStatusError as e:
+            error_detail = f"HTTP {e.response.status_code}: {e.response.text if e.response.text else 'No response body'}"
+            return {"success": False, "error": error_detail, "items": []}
         except Exception as e:
             return {"success": False, "error": str(e), "items": []}
     
-    def search_flights_direct(self, args: SearchArgs):
+    def search_flights_direct(self, args):
         """Direct API call to search flights"""
         try:
+            # Convert dict to SearchArgs if needed
+            if isinstance(args, dict):
+                args = SearchArgs(**args)
+            
             currency = args.currency or self.default_currency
             raw = self.api_client.search_flights(
                 origin=args.origin,
