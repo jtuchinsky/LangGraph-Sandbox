@@ -86,28 +86,60 @@ class AmadeusAPIClient:
     ):
         """Search flight offers using Amadeus API"""
         url = f"{self.base_url}/v2/shopping/flight-offers"
+        
+        # Build the request payload for POST method (v2 structure)
+        origin_destinations = [
+            {
+                "id": "1",
+                "originLocationCode": origin.upper(),
+                "destinationLocationCode": destination.upper(),
+                "departureDateTimeRange": {"date": departure_date},
+            }
+        ]
+        
+        # Add return journey as separate origin-destination for round-trip
+        if return_date:
+            origin_destinations.append({
+                "id": "2", 
+                "originLocationCode": destination.upper(),
+                "destinationLocationCode": origin.upper(),
+                "departureDateTimeRange": {"date": return_date},
+            })
+            
+        travelers = [{"id": str(i + 1), "travelerType": "ADULT"} for i in range(adults)]
+        
+        # Build cabin restrictions for all origin-destinations
+        origin_destination_ids = [str(i + 1) for i in range(len(origin_destinations))]
+        
         payload: Dict[str, Any] = {
             "currencyCode": currency,
-            "adults": adults,
+            "originDestinations": origin_destinations,
+            "travelers": travelers,
             "sources": ["GDS"],
-            "travelClass": cabin,  # ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST
-            "max": max_results,
-            "originLocationCode": origin.upper(),
-            "destinationLocationCode": destination.upper(),
-            "departureDate": departure_date,
+            "searchCriteria": {
+                "maxFlightOffers": max_results,
+                "flightFilters": {
+                    "cabinRestrictions": [{"cabin": cabin, "coverage": "MOST_SEGMENTS", "originDestinationIds": origin_destination_ids}]
+                }
+            }
         }
-        if return_date:
-            payload["returnDate"] = return_date
+        
         if non_stop is not None:
-            payload["nonStop"] = non_stop
+            payload["searchCriteria"]["flightFilters"]["connectionRestriction"] = {
+                "maxNumberOfConnections": 0 if non_stop else 2
+            }
+            
         if max_price is not None:
-            payload["maxPrice"] = max_price
+            payload["searchCriteria"]["pricingOptions"] = {"includedCheckedBagsOnly": False}
+            payload["searchCriteria"]["maxPrice"] = max_price
 
         headers = {
             **self._auth_headers(),
             "Content-Type": "application/json",
         }
-        r = self._client.get(url, headers=headers, params=payload)
+        
+        # Use POST method with JSON payload instead of GET with query params
+        r = self._client.post(url, headers=headers, json=payload)
         r.raise_for_status()
         return r.json()
 
@@ -213,6 +245,7 @@ class AmadeusMCPClient:
         try:
             data = self.api_client.autocomplete_locations(query, limit, sub_types)
             # Return slimmed results for convenience
+
             items = []
             for item in data.get("data", []):
                 items.append({

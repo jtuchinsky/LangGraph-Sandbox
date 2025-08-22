@@ -26,7 +26,7 @@ async def example_direct_api_usage():
         
         # Example 1: Autocomplete locations
         print("\n1. Autocompleting locations for 'San Francisco'...")
-        result = client.autocomplete_locations_direct("San Francisco", limit=3)
+        result = client.autocomplete_locations_direct("San Francisco", limit=3,  sub_types = ["CITY", "AIRPORT"])
         if result["success"]:
             print(f"Found {result['count']} locations:")
             for item in result["items"]:
@@ -35,25 +35,41 @@ async def example_direct_api_usage():
             print(f"Error: {result.get('error')}")
         
         # Example 2: Search flights
-        print("\n2. Searching flights JFK -> SFO...")
+        print("\n2. Searching round-trip flights EWR -> TLV...")
         search_args = {
-            "origin": "JFK",
-            "destination": "SFO", 
-            "departure_date": "2025-03-15",
+            "origin": "EWR",
+            "destination": "TLV",
+            "departure_date": "2025-09-19",
+            "return_date": "2025-10-05",
             "adults": 1,
             "cabin": "ECONOMY",
-            "max_results": 2
+            "max_results": 15
         }
         
         flight_result = client.search_flights_direct(search_args)
         if flight_result["success"]:
             print(f"Found {flight_result['count']} flight offers:")
-            for offer in flight_result["offers"]:
-                print(f"  - Flight {offer['id']}: {offer['oneAdultTotal']} {offer['currency']}")
-                for itin in offer["itineraries"]:
-                    print(f"    Duration: {itin['duration']}")
-                    for seg in itin["segments"]:
-                        print(f"    {seg['from']} -> {seg['to']} at {seg['depTime']}")
+            for i, offer in enumerate(flight_result["offers"][:3], 1):  # Show first 3 offers
+                print(f"\n  === Offer {i}: {offer['oneAdultTotal']} {offer['currency']} ===")
+                for j, itin in enumerate(offer["itineraries"], 1):
+                    direction = "Outbound" if j == 1 else "Return"
+                    print(f"    {direction} Journey - Total Duration: {itin['duration']}")
+                    
+                    for k, seg in enumerate(itin["segments"]):
+                        # Flight info
+                        airline = seg.get('carrierCode', 'N/A')
+                        flight_num = seg.get('number', 'N/A')
+                        operating = seg.get('operating')
+                        operator_info = f" (operated by {operating})" if operating and operating != airline else ""
+                        
+                        print(f"      Flight {airline}{flight_num}{operator_info}")
+                        print(f"      {seg['from']} -> {seg['to']}")
+                        print(f"      Depart: {seg['depTime']} | Arrive: {seg['arrTime']}")
+                        print(f"      Duration: {seg['duration']} | Aircraft: {seg.get('aircraft', 'N/A')}")
+                        
+                        # Connection time (if not the last segment)
+                        if k < len(itin["segments"]) - 1:
+                            print(f"      Connection at {seg['to']}")
         else:
             print(f"Error: {flight_result.get('error')}")
         
