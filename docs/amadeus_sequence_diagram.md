@@ -1,61 +1,90 @@
-# Amadeus MCP Client Package - Sequence Diagrams
+# Amadeus MCP Client Package - Refactored Sequence Diagrams
 
-## 1. Direct API Usage Flow
+## 1. Direct API Usage Flow (Using AmadeusDirectClient)
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant AmadeusMCPClient
-    participant AmadeusAPIClient
+    participant AmadeusDirectClient
     participant AmadeusAPI
     participant OAuthToken
 
-    User->>AmadeusMCPClient: create_amadeus_client()
-    AmadeusMCPClient->>AmadeusAPIClient: __init__(client_id, secret, base_url)
+    User->>AmadeusDirectClient: create_direct_client()
+    AmadeusDirectClient->>AmadeusDirectClient: __init__(client_id, secret, host)
     
-    User->>AmadeusMCPClient: autocomplete_locations_direct("San Francisco")
-    AmadeusMCPClient->>AmadeusAPIClient: autocomplete_locations("San Francisco", 5, ["CITY", "AIRPORT"])
-    AmadeusAPIClient->>AmadeusAPIClient: _ensure_token()
+    User->>AmadeusDirectClient: autocomplete_locations("San Francisco")
+    AmadeusDirectClient->>AmadeusDirectClient: _ensure_token()
     
     alt Token is expired or missing
-        AmadeusAPIClient->>AmadeusAPI: POST /v1/security/oauth2/token
-        AmadeusAPI-->>AmadeusAPIClient: access_token, expires_in
-        AmadeusAPIClient->>OAuthToken: create token object
+        AmadeusDirectClient->>AmadeusAPI: POST /v1/security/oauth2/token
+        AmadeusAPI-->>AmadeusDirectClient: access_token, expires_in
+        AmadeusDirectClient->>OAuthToken: create token object
     end
     
-    AmadeusAPIClient->>AmadeusAPIClient: _auth_headers()
-    AmadeusAPIClient->>AmadeusAPI: GET /v1/reference-data/locations
-    AmadeusAPI-->>AmadeusAPIClient: locations data
-    AmadeusAPIClient-->>AmadeusMCPClient: raw API response
-    AmadeusMCPClient->>AmadeusMCPClient: transform to slim format
-    AmadeusMCPClient-->>User: {success: true, items: [...]}
+    AmadeusDirectClient->>AmadeusDirectClient: _auth_headers()
+    AmadeusDirectClient->>AmadeusAPI: GET /v1/reference-data/locations
+    AmadeusAPI-->>AmadeusDirectClient: locations data
+    AmadeusDirectClient-->>User: raw API response
     
-    User->>AmadeusMCPClient: close()
-    AmadeusMCPClient->>AmadeusAPIClient: close()
+    User->>AmadeusDirectClient: close()
 ```
 
-## 2. MCP Server Usage Flow
+## 1b. Direct API Usage via Wrapper Client
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant AmadeusMCPClient
+    participant AmadeusWrapperClient
+    participant AmadeusDirectClient
+    participant AmadeusAPI
+    participant OAuthToken
+
+    User->>AmadeusWrapperClient: create_amadeus_client()
+    AmadeusWrapperClient->>AmadeusDirectClient: create_direct_client()
+    
+    User->>AmadeusWrapperClient: autocomplete_locations_direct("San Francisco")
+    AmadeusWrapperClient->>AmadeusDirectClient: autocomplete_locations("San Francisco", 5, ["CITY", "AIRPORT"])
+    AmadeusDirectClient->>AmadeusDirectClient: _ensure_token()
+    
+    alt Token is expired or missing
+        AmadeusDirectClient->>AmadeusAPI: POST /v1/security/oauth2/token
+        AmadeusAPI-->>AmadeusDirectClient: access_token, expires_in
+        AmadeusDirectClient->>OAuthToken: create token object
+    end
+    
+    AmadeusDirectClient->>AmadeusDirectClient: _auth_headers()
+    AmadeusDirectClient->>AmadeusAPI: GET /v1/reference-data/locations
+    AmadeusAPI-->>AmadeusDirectClient: locations data
+    AmadeusDirectClient-->>AmadeusWrapperClient: raw API response
+    AmadeusWrapperClient->>AmadeusWrapperClient: transform to slim format
+    AmadeusWrapperClient-->>User: {success: true, items: [...]}
+    
+    User->>AmadeusWrapperClient: close()
+    AmadeusWrapperClient->>AmadeusDirectClient: close()
+```
+
+## 2. MCP Server Usage Flow (Using AmadeusMCPOnlyClient)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant AmadeusMCPOnlyClient
     participant MCPClient
     participant MCPServer
-    participant AmadeusAPIClient as ServerAPIClient
+    participant AmadeusDirectClient as ServerAPIClient
     participant AmadeusAPI
 
-    User->>AmadeusMCPClient: create_amadeus_client()
-    User->>AmadeusMCPClient: connect_to_mcp_server(["python", "-m", "server"])
-    AmadeusMCPClient->>MCPClient: __init__(server_command)
-    AmadeusMCPClient->>MCPClient: connect()
+    User->>AmadeusMCPOnlyClient: create_mcp_client()
+    User->>AmadeusMCPOnlyClient: connect_to_server(["python", "-m", "server"])
+    AmadeusMCPOnlyClient->>MCPClient: __init__(server_command)
+    AmadeusMCPOnlyClient->>MCPClient: connect()
     MCPClient->>MCPServer: start server process
     MCPClient->>MCPServer: initialize()
     MCPServer-->>MCPClient: connection established
-    MCPClient-->>AmadeusMCPClient: connection success
+    MCPClient-->>AmadeusMCPOnlyClient: connection success
     
-    User->>AmadeusMCPClient: autocomplete_locations_mcp("Los Angeles")
-    AmadeusMCPClient->>MCPClient: call_tool("autocomplete_locations", args)
+    User->>AmadeusMCPOnlyClient: autocomplete_locations("Los Angeles")
+    AmadeusMCPOnlyClient->>MCPClient: call_tool("autocomplete_locations", args)
     MCPClient->>MCPServer: tool call request
     MCPServer->>ServerAPIClient: autocomplete_locations("Los Angeles")
     
@@ -63,155 +92,224 @@ sequenceDiagram
     AmadeusAPI-->>ServerAPIClient: locations data
     ServerAPIClient-->>MCPServer: processed results
     MCPServer-->>MCPClient: tool response
-    MCPClient-->>AmadeusMCPClient: {success: true, result: [...]}
-    AmadeusMCPClient-->>User: MCP response
+    MCPClient-->>AmadeusMCPOnlyClient: {success: true, result: [...]}
+    AmadeusMCPOnlyClient-->>User: MCP response
     
-    User->>AmadeusMCPClient: disconnect_from_mcp_server()
-    AmadeusMCPClient->>MCPClient: disconnect()
+    User->>AmadeusMCPOnlyClient: disconnect_from_server()
+    AmadeusMCPOnlyClient->>MCPClient: disconnect()
     MCPClient->>MCPServer: close connection
 ```
 
-## 3. Hybrid Usage with Fallback
+## 2b. MCP Server Usage via Wrapper Client
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant AmadeusMCPClient
+    participant AmadeusWrapperClient
+    participant AmadeusMCPOnlyClient
     participant MCPClient
     participant MCPServer
-    participant AmadeusAPIClient
+    participant AmadeusDirectClient as ServerAPIClient
     participant AmadeusAPI
 
-    User->>AmadeusMCPClient: create_amadeus_client()
-    User->>AmadeusMCPClient: connect_to_mcp_server(server_command)
+    User->>AmadeusWrapperClient: create_amadeus_client()
+    AmadeusWrapperClient->>AmadeusMCPOnlyClient: create_mcp_client()
+    User->>AmadeusWrapperClient: connect_to_mcp_server(["python", "-m", "server"])
+    AmadeusWrapperClient->>AmadeusMCPOnlyClient: connect_to_server(server_command)
+    AmadeusMCPOnlyClient->>MCPClient: connect()
+    MCPClient->>MCPServer: start server process
+    MCPServer-->>MCPClient: connection established
+    MCPClient-->>AmadeusMCPOnlyClient: success
+    AmadeusMCPOnlyClient-->>AmadeusWrapperClient: connected = true
+    
+    User->>AmadeusWrapperClient: autocomplete_locations_mcp("Los Angeles")
+    AmadeusWrapperClient->>AmadeusMCPOnlyClient: autocomplete_locations("Los Angeles")
+    AmadeusMCPOnlyClient->>MCPClient: call_tool("autocomplete_locations", args)
+    MCPClient->>MCPServer: tool call request
+    MCPServer->>ServerAPIClient: autocomplete_locations("Los Angeles")
+    
+    ServerAPIClient->>AmadeusAPI: GET /v1/reference-data/locations
+    AmadeusAPI-->>ServerAPIClient: locations data
+    ServerAPIClient-->>MCPServer: processed results
+    MCPServer-->>MCPClient: tool response
+    MCPClient-->>AmadeusMCPOnlyClient: {success: true, result: [...]}
+    AmadeusMCPOnlyClient-->>AmadeusWrapperClient: MCP response
+    AmadeusWrapperClient-->>User: MCP response
+    
+    User->>AmadeusWrapperClient: disconnect_from_mcp_server()
+    AmadeusWrapperClient->>AmadeusMCPOnlyClient: disconnect_from_server()
+    AmadeusMCPOnlyClient->>MCPClient: disconnect()
+    MCPClient->>MCPServer: close connection
+```
+
+## 3. Hybrid Usage with Intelligent Fallback (Wrapper Client)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant AmadeusWrapperClient
+    participant AmadeusMCPOnlyClient
+    participant MCPClient
+    participant MCPServer
+    participant AmadeusDirectClient
+    participant AmadeusAPI
+
+    User->>AmadeusWrapperClient: create_amadeus_client()
+    AmadeusWrapperClient->>AmadeusDirectClient: create_direct_client()
+    AmadeusWrapperClient->>AmadeusMCPOnlyClient: create_mcp_client()
+    User->>AmadeusWrapperClient: connect_to_mcp_server(server_command)
     
     alt MCP Server Available
-        AmadeusMCPClient->>MCPClient: connect()
+        AmadeusWrapperClient->>AmadeusMCPOnlyClient: connect_to_server()
+        AmadeusMCPOnlyClient->>MCPClient: connect()
         MCPClient->>MCPServer: establish connection
         MCPServer-->>MCPClient: success
-        MCPClient-->>AmadeusMCPClient: connected = true
+        MCPClient-->>AmadeusMCPOnlyClient: connected = true
+        AmadeusMCPOnlyClient-->>AmadeusWrapperClient: success
     else MCP Server Unavailable
-        MCPClient-->>AmadeusMCPClient: connected = false
+        AmadeusMCPOnlyClient-->>AmadeusWrapperClient: connected = false
     end
     
-    User->>AmadeusMCPClient: search_flights(search_args, prefer_mcp=true)
+    User->>AmadeusWrapperClient: search_flights(search_args, prefer_mcp=true)
     
     alt MCP Available and Prefer MCP
-        AmadeusMCPClient->>AmadeusMCPClient: search_flights_mcp(search_args)
-        AmadeusMCPClient->>MCPClient: call_tool("search_flights", args)
+        AmadeusWrapperClient->>AmadeusWrapperClient: search_flights_mcp(search_args)
+        AmadeusWrapperClient->>AmadeusMCPOnlyClient: search_flights(args)
+        AmadeusMCPOnlyClient->>MCPClient: call_tool("search_flights", args)
         MCPClient->>MCPServer: tool request
         
         alt MCP Call Succeeds
             MCPServer-->>MCPClient: flight results
-            MCPClient-->>AmadeusMCPClient: {success: true, ...}
-            AmadeusMCPClient-->>User: MCP results
+            MCPClient-->>AmadeusMCPOnlyClient: {success: true, ...}
+            AmadeusMCPOnlyClient-->>AmadeusWrapperClient: MCP results
+            AmadeusWrapperClient-->>User: MCP results
         else MCP Call Fails
             MCPServer-->>MCPClient: error
-            MCPClient-->>AmadeusMCPClient: {success: false, ...}
-            Note over AmadeusMCPClient: Fallback to direct API
-            AmadeusMCPClient->>AmadeusMCPClient: search_flights_direct(args)
-            AmadeusMCPClient->>AmadeusAPIClient: search_flights(...)
-            AmadeusAPIClient->>AmadeusAPI: GET /v2/shopping/flight-offers
-            AmadeusAPI-->>AmadeusAPIClient: flight data
-            AmadeusAPIClient-->>AmadeusMCPClient: API response
-            AmadeusMCPClient-->>User: Direct API results
+            MCPClient-->>AmadeusMCPOnlyClient: {success: false, ...}
+            AmadeusMCPOnlyClient-->>AmadeusWrapperClient: error
+            Note over AmadeusWrapperClient: Intelligent fallback to direct API
+            AmadeusWrapperClient->>AmadeusWrapperClient: search_flights_direct(args)
+            AmadeusWrapperClient->>AmadeusDirectClient: search_flights(...)
+            AmadeusDirectClient->>AmadeusAPI: POST /v2/shopping/flight-offers
+            AmadeusAPI-->>AmadeusDirectClient: flight data
+            AmadeusDirectClient-->>AmadeusWrapperClient: API response
+            AmadeusWrapperClient-->>User: Direct API results
         end
     else Direct API Preferred or MCP Unavailable
-        AmadeusMCPClient->>AmadeusMCPClient: search_flights_direct(args)
-        AmadeusMCPClient->>AmadeusAPIClient: search_flights(...)
-        AmadeusAPIClient->>AmadeusAPI: GET /v2/shopping/flight-offers
-        AmadeusAPI-->>AmadeusAPIClient: flight data
-        AmadeusAPIClient-->>AmadeusMCPClient: API response
-        AmadeusMCPClient-->>User: Direct API results
+        AmadeusWrapperClient->>AmadeusWrapperClient: search_flights_direct(args)
+        AmadeusWrapperClient->>AmadeusDirectClient: search_flights(...)
+        AmadeusDirectClient->>AmadeusAPI: POST /v2/shopping/flight-offers
+        AmadeusAPI-->>AmadeusDirectClient: flight data
+        AmadeusDirectClient-->>AmadeusWrapperClient: API response
+        AmadeusWrapperClient-->>User: Direct API results
     end
 ```
 
-## 4. Flight Search and Pricing Flow
+## 4. Flight Search and Pricing Flow (Updated)
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant AmadeusMCPClient
-    participant AmadeusAPIClient
+    participant AmadeusWrapperClient
+    participant AmadeusDirectClient
     participant AmadeusAPI
 
-    User->>AmadeusMCPClient: search_flights_direct(search_args)
-    AmadeusMCPClient->>AmadeusMCPClient: validate and convert SearchArgs
-    AmadeusMCPClient->>AmadeusAPIClient: search_flights(origin, destination, ...)
+    User->>AmadeusWrapperClient: search_flights_direct(search_args)
+    AmadeusWrapperClient->>AmadeusWrapperClient: validate and convert SearchArgs
+    AmadeusWrapperClient->>AmadeusDirectClient: search_flights(origin, destination, ...)
     
-    AmadeusAPIClient->>AmadeusAPIClient: _ensure_token()
-    AmadeusAPIClient->>AmadeusAPI: GET /v2/shopping/flight-offers
-    AmadeusAPI-->>AmadeusAPIClient: flight offers JSON
-    AmadeusAPIClient-->>AmadeusMCPClient: raw flight data
+    AmadeusDirectClient->>AmadeusDirectClient: _ensure_token()
+    AmadeusDirectClient->>AmadeusAPI: POST /v2/shopping/flight-offers
+    AmadeusAPI-->>AmadeusDirectClient: flight offers JSON
+    AmadeusDirectClient-->>AmadeusWrapperClient: raw flight data
     
-    AmadeusMCPClient->>AmadeusMCPClient: transform to slim format
-    Note over AmadeusMCPClient: Keep _full offer for pricing
-    AmadeusMCPClient-->>User: {success: true, offers: [...]}
+    AmadeusWrapperClient->>AmadeusWrapperClient: transform to slim format
+    Note over AmadeusWrapperClient: Keep _full offer for pricing
+    AmadeusWrapperClient-->>User: {success: true, offers: [...]}
     
     User->>User: Select offer from results
-    User->>AmadeusMCPClient: price_offer_direct({flight_offer: offer._full})
-    AmadeusMCPClient->>AmadeusAPIClient: price_offer(offer._full, currency)
-    AmadeusAPIClient->>AmadeusAPI: POST /v1/shopping/flight-offers/pricing
-    AmadeusAPI-->>AmadeusAPIClient: updated pricing data
-    AmadeusAPIClient-->>AmadeusMCPClient: pricing response
-    AmadeusMCPClient-->>User: {success: true, result: {...}}
+    User->>AmadeusWrapperClient: price_offer_direct({flight_offer: offer._full})
+    AmadeusWrapperClient->>AmadeusDirectClient: price_offer(offer._full, currency)
+    AmadeusDirectClient->>AmadeusAPI: POST /v1/shopping/flight-offers/pricing
+    AmadeusAPI-->>AmadeusDirectClient: updated pricing data
+    AmadeusDirectClient-->>AmadeusWrapperClient: pricing response
+    AmadeusWrapperClient-->>User: {success: true, result: {...}}
 ```
 
-## 5. Error Handling Flow
+## 5. Error Handling Flow (Updated)
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant AmadeusMCPClient
-    participant AmadeusAPIClient
+    participant AmadeusWrapperClient
+    participant AmadeusDirectClient
     participant AmadeusAPI
 
-    User->>AmadeusMCPClient: autocomplete_locations_direct("query")
-    AmadeusMCPClient->>AmadeusAPIClient: autocomplete_locations("query")
-    AmadeusAPIClient->>AmadeusAPIClient: _ensure_token()
-    AmadeusAPIClient->>AmadeusAPI: GET /v1/reference-data/locations
+    User->>AmadeusWrapperClient: autocomplete_locations_direct("query")
+    AmadeusWrapperClient->>AmadeusDirectClient: autocomplete_locations("query")
+    AmadeusDirectClient->>AmadeusDirectClient: _ensure_token()
+    AmadeusDirectClient->>AmadeusAPI: GET /v1/reference-data/locations
     
     alt HTTP Error (4xx/5xx)
-        AmadeusAPI-->>AmadeusAPIClient: HTTP 400 Bad Request
-        AmadeusAPIClient->>AmadeusAPIClient: raise HTTPStatusError
-        AmadeusAPIClient-->>AmadeusMCPClient: HTTPStatusError exception
-        AmadeusMCPClient->>AmadeusMCPClient: catch and format error
-        AmadeusMCPClient-->>User: {success: false, error: "HTTP 400: details"}
+        AmadeusAPI-->>AmadeusDirectClient: HTTP 400 Bad Request
+        AmadeusDirectClient->>AmadeusDirectClient: raise HTTPStatusError
+        AmadeusDirectClient-->>AmadeusWrapperClient: HTTPStatusError exception
+        AmadeusWrapperClient->>AmadeusWrapperClient: catch and format error
+        AmadeusWrapperClient-->>User: {success: false, error: "HTTP 400: details"}
     else Network/Other Error
-        AmadeusAPI-->>AmadeusAPIClient: Connection error
-        AmadeusAPIClient-->>AmadeusMCPClient: Exception
-        AmadeusMCPClient->>AmadeusMCPClient: catch generic exception
-        AmadeusMCPClient-->>User: {success: false, error: "error message"}
+        AmadeusAPI-->>AmadeusDirectClient: Connection error
+        AmadeusDirectClient-->>AmadeusWrapperClient: Exception
+        AmadeusWrapperClient->>AmadeusWrapperClient: catch generic exception
+        AmadeusWrapperClient-->>User: {success: false, error: "error message"}
     else Success
-        AmadeusAPI-->>AmadeusAPIClient: Valid response
-        AmadeusAPIClient-->>AmadeusMCPClient: Success data
-        AmadeusMCPClient-->>User: {success: true, items: [...]}
+        AmadeusAPI-->>AmadeusDirectClient: Valid response
+        AmadeusDirectClient-->>AmadeusWrapperClient: Success data
+        AmadeusWrapperClient-->>User: {success: true, items: [...]}
     end
 ```
 
-## Key Interaction Patterns
+## Key Interaction Patterns in Refactored Architecture
 
 ### 1. **Authentication Flow**
-- OAuth token managed automatically by `AmadeusAPIClient`
+- OAuth token managed automatically by `AmadeusDirectClient`
 - Token refresh handled transparently before API calls
 - Credentials loaded from environment variables
+- Isolated in direct client for clear separation of concerns
 
-### 2. **Dual Access Pattern**
-- Direct API methods (`*_direct()`) for immediate access
-- MCP methods (`*_mcp()`) for server-mediated access  
-- Convenience methods with automatic fallback
+### 2. **Modular Access Pattern**
+- **Direct API**: `AmadeusDirectClient` for immediate low-level access
+- **MCP Protocol**: `AmadeusMCPOnlyClient` for server-mediated access  
+- **Unified Interface**: `AmadeusWrapperClient` with intelligent fallback logic
+- Each component can be used independently
 
-### 3. **Error Handling Strategy**
-- HTTP errors captured with detailed status information
-- MCP failures trigger automatic fallback to direct API
-- Consistent error response format across all methods
+### 3. **Intelligent Fallback Strategy**
+- `AmadeusWrapperClient` tries MCP first, automatically falls back to direct API
+- HTTP errors captured with detailed status information in both paths
+- MCP failures trigger seamless fallback with no user intervention required
+- Consistent error response format across all access methods
 
-### 4. **Data Transformation**
-- Raw API responses transformed to "slim" format
+### 4. **Data Transformation & Response Normalization**
+- Raw API responses transformed to "slim" format in wrapper client
 - Full offer data preserved for pricing operations
-- Consistent response structure for client applications
+- Direct client returns raw API responses for maximum flexibility
+- Wrapper client provides normalized, consistent response structure
 
-### 5. **Resource Management**
-- HTTP client and MCP connections properly closed
-- Connection state tracked and validated
+### 5. **Resource Management & Connection Handling**
+- Each client manages its own resources independently
+- HTTP client properly closed in `AmadeusDirectClient`
+- MCP connections tracked and validated in `AmadeusMCPOnlyClient`  
+- `AmadeusWrapperClient` coordinates cleanup across both clients
 - Graceful degradation when services unavailable
+
+### 6. **Separation of Concerns**
+- **Authentication**: Isolated in direct client
+- **Protocol handling**: Isolated in MCP client  
+- **Business logic**: Coordinated in wrapper client
+- **Error handling**: Implemented at appropriate layers
+- **Resource management**: Handled by respective components
+
+### 7. **Flexible Usage Patterns**
+- **Minimalist**: Use `AmadeusDirectClient` for simple API access
+- **Protocol-specific**: Use `AmadeusMCPOnlyClient` for MCP operations
+- **Comprehensive**: Use `AmadeusWrapperClient` for full functionality with fallback
+- **Legacy compatible**: Existing code continues to work unchanged
