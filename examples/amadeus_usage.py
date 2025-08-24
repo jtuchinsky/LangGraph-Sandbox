@@ -49,8 +49,13 @@ async def example_direct_api_usage():
         flight_result = client.search_flights_direct(search_args)
         if flight_result["success"]:
             print(f"Found {flight_result['count']} flight offers:")
-            for i, offer in enumerate(flight_result["offers"][:3], 1):  # Show first 3 offers
-                print(f"\n  === Offer {i}: {offer['oneAdultTotal']} {offer['currency']} ===")
+            # Show all requested results (up to max_results from search_args)
+            display_count = min(len(flight_result["offers"]), search_args.get("max_results", 5))
+            for i, offer in enumerate(flight_result["offers"][:display_count], 1):
+                # Determine if round-trip or one-way
+                trip_type = "Round-trip" if len(offer["itineraries"]) > 1 else "One-way"
+                print(f"\n  === Offer {i}: {offer['oneAdultTotal']} {offer['currency']} ({trip_type}) ===")
+                
                 for j, itin in enumerate(offer["itineraries"], 1):
                     direction = "Outbound" if j == 1 else "Return"
                     print(f"    {direction} Journey - Total Duration: {itin['duration']}")
@@ -70,6 +75,10 @@ async def example_direct_api_usage():
                         # Connection time (if not the last segment)
                         if k < len(itin["segments"]) - 1:
                             print(f"      Connection at {seg['to']}")
+                
+                # Show pricing breakdown if available
+                if len(offer["itineraries"]) > 1:
+                    print(f"    💰 Total Price: {offer['oneAdultTotal']} {offer['currency']} (for complete round-trip)")
         else:
             print(f"Error: {flight_result.get('error')}")
         
