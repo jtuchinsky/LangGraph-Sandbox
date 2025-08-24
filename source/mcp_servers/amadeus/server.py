@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 from dotenv import load_dotenv
 
 from mcp.server.fastmcp import FastMCP
-from ...mcp_clients.amadeus.client import AmadeusAPIClient
+from ...mcp_clients.amadeus.direct_client import AmadeusDirectClient
 
 # ---------- Server Configuration ----------
 
@@ -58,7 +58,7 @@ class PriceArgs(BaseModel):
 # ---------- MCP Server & Tools ----------
 
 app = FastMCP("amadeus-mcp")
-api_client = AmadeusAPIClient(CLIENT_ID, CLIENT_SECRET, BASE_URL)
+api_client = AmadeusDirectClient(CLIENT_ID, CLIENT_SECRET, "prod" if "api.amadeus.com" in BASE_URL else "test")
 
 @app.tool(description="Autocomplete locations (CITY, AIRPORT). Returns Amadeus locations JSON.")
 def autocomplete_locations(args: AutocompleteArgs) -> Any:
