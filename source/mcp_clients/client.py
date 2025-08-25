@@ -21,9 +21,15 @@ class MCPClient:
                 args=self.server_command[1:] + self.server_args
             )
             
-            # stdio_client returns an async context manager
+            # stdio_client returns an async context manager that yields (read_stream, write_stream)
             self._context = stdio_client(server_params)
-            self.session = await self._context.__aenter__()
+            streams = await self._context.__aenter__()
+            
+            # Create ClientSession from the streams
+            read_stream, write_stream = streams
+            self.session = ClientSession(read_stream, write_stream)
+            
+            # Initialize the session
             await self.session.initialize()
             self.connected = True
             return True
