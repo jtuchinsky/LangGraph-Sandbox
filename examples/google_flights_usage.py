@@ -174,17 +174,11 @@ async def example_airport_database_operations():
         
         print("✓ Connected to server")
         
-        # Update airports database
-        print("\n1. Updating airports database...")
-        update_result = await client.update_airports_database()
-        if update_result["success"]:
-            print("Airport database update:")
-            print(update_result["result"])
-        else:
-            print(f"Database update error: {update_result.get('error')}")
+        # Note: Airport database is automatically loaded by the server on startup (7,861 airports)
+        # No need to call update_airports_database() unless you want to refresh the data
         
         # Get all airports (first 100)
-        print("\n2. Getting all airports...")
+        print("\n1. Getting all airports...")
         all_airports = await client.get_all_airports()
         if all_airports["success"]:
             print("All airports (partial list):")
@@ -197,8 +191,8 @@ async def example_airport_database_operations():
         else:
             print(f"All airports error: {all_airports.get('error')}")
         
-        # Search for specific airports
-        print("\n3. Searching for airports with 'New York'...")
+        # Search for specific airports  
+        print("\n2. Searching for airports with 'New York'...")
         ny_airports = await client.airport_search("New York")
         if ny_airports["success"]:
             print("New York area airports:")
