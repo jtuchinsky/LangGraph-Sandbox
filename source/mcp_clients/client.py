@@ -28,18 +28,29 @@ class MCPClient:
             self.connected = True
             return True
         except Exception as e:
+            # Clean up on connection failure
+            if self._context:
+                try:
+                    await self._context.__aexit__(None, None, None)
+                except:
+                    pass
+                self._context = None
+            self.session = None
+            self.connected = False
             print(f"Failed to connect to MCP server: {e}")
             return False
     
     async def disconnect(self):
         """Disconnect from MCP server"""
-        if self.session and hasattr(self, '_context'):
+        if self.session and self._context:
             try:
                 await self._context.__aexit__(None, None, None)
             except Exception as e:
-                print(f"Error during disconnect: {e}")
+                # Ignore context manager cleanup errors as they're expected when server is unavailable
+                pass
             finally:
                 self.session = None
+                self._context = None
                 self.connected = False
     
     async def list_tools(self) -> List[Dict[str, Any]]:
