@@ -11,6 +11,7 @@ class MCPClient:
         self.server_args = server_args or []
         self.session: Optional[ClientSession] = None
         self.connected = False
+        self._context = None
     
     async def connect(self):
         """Connect to MCP server"""
@@ -20,7 +21,9 @@ class MCPClient:
                 args=self.server_command[1:] + self.server_args
             )
             
-            self.session = await stdio_client(server_params)
+            # stdio_client returns an async context manager
+            self._context = stdio_client(server_params)
+            self.session = await self._context.__aenter__()
             await self.session.initialize()
             self.connected = True
             return True
@@ -30,9 +33,14 @@ class MCPClient:
     
     async def disconnect(self):
         """Disconnect from MCP server"""
-        if self.session:
-            await self.session.close()
-            self.connected = False
+        if self.session and hasattr(self, '_context'):
+            try:
+                await self._context.__aexit__(None, None, None)
+            except Exception as e:
+                print(f"Error during disconnect: {e}")
+            finally:
+                self.session = None
+                self.connected = False
     
     async def list_tools(self) -> List[Dict[str, Any]]:
         """List available tools from the MCP server"""
