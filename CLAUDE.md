@@ -75,13 +75,33 @@ uv pip install -r requirements.txt
 python -m source.main
 ```
 
-### Running Amadeus examples
+### Development with linting/formatting
 ```bash
-python examples/amadeus_usage.py
+# Format code with black
+black source/ examples/
+
+# Lint with ruff
+ruff check source/ examples/
+
+# Run tests
+pytest
 ```
 
-### Running Amadeus MCP server
+### Running examples
 ```bash
+# Amadeus travel API examples
+python examples/amadeus_usage.py
+
+# Google Flights client testing
+python examples/test_google_flights_client.py
+
+# Google Flights usage examples
+python examples/google_flights_usage.py
+```
+
+### Running MCP servers standalone
+```bash
+# Amadeus MCP server
 python -m source.mcp_servers.amadeus.server
 ```
 
@@ -95,10 +115,13 @@ docker-compose up -d ollama
 ### Testing specific components
 ```bash
 # Test Amadeus client import
-python -c "from source.mcp_clients.amadeus import create_amadeus_client; print('Import successful')"
+PYTHONPATH=. python -c "from source.mcp_clients.amadeus import create_amadeus_client; print('Import successful')"
+
+# Test Google Flights client
+PYTHONPATH=. python -c "from source.mcp_clients.google_flights import create_google_flights_client; print('Google Flights client works')"
 
 # Test server import
-python -c "from source.mcp_servers.amadeus.server import main; print('Server import successful')"
+PYTHONPATH=. python -c "from source.mcp_servers.amadeus.server import main; print('Server import successful')"
 ```
 
 ## Code Architecture
@@ -111,12 +134,21 @@ python -c "from source.mcp_servers.amadeus.server import main; print('Server imp
 - **Mistral**: Large, Medium, Small models
 - **Local LLMs**: via Ollama + Docker
 
-### Amadeus Travel API Integration (Recently Refactored)
+### MCP Client Architecture
+
+#### Amadeus Travel API Integration
 The Amadeus client has been refactored into three separate components:
 
 1. **AmadeusDirectClient** (`direct_client.py`): Low-level direct API access with OAuth 2.0
 2. **AmadeusMCPOnlyClient** (`mcp_client.py`): Pure MCP protocol client
 3. **AmadeusWrapperClient** (`wrapper_client.py`): High-level facade with intelligent fallback
+
+#### Google Flights Integration
+The Google Flights client provides flight search capabilities:
+
+1. **GoogleFlightsMCPClient** (`client.py`): MCP-based client for flight searches
+2. **Factory functions**: `create_google_flights_client()` for easy instantiation
+3. **Testing utilities**: Standalone test client in `examples/`
 
 ### Key Features
 - **Filesystem Operations**: Read, create, modify, delete files
@@ -135,17 +167,38 @@ The Amadeus client has been refactored into three separate components:
 
 ## Testing
 
+### Running Tests
+```bash
+# Run all tests with pytest
+pytest
+
+# Run tests with async support
+pytest -v
+
+# Run specific test files
+pytest examples/test_google_flights_client.py
+```
+
 ### Flight Search Testing
-The project includes comprehensive examples for testing Amadeus functionality:
-- Direct API usage
+The project includes comprehensive examples for testing both travel APIs:
+
+**Amadeus Testing:**
+- Direct API usage examples
 - MCP server integration
 - Hybrid fallback patterns
 - Round-trip flight search with detailed airline information
 
+**Google Flights Testing:**
+- Client functionality testing without I/O blocking
+- Validation model testing
+- Connection state management testing
+- Method availability verification
+
 ### Common Issues
-- **Authentication**: Ensure AMADEUS_CLIENT_ID and AMADEUS_CLIENT_SECRET are set
-- **Round-trip Search**: API requires separate origin-destination objects for outbound/return
+- **Authentication**: Ensure API keys are set in `.env` file
+- **Amadeus Round-trip Search**: API requires separate origin-destination objects for outbound/return
 - **Import Paths**: Use the new modular client imports after refactoring
+- **Google Flights**: Test client functionality separately from server to avoid I/O blocking
 
 ## Development Notes
 
@@ -156,3 +209,18 @@ The project includes comprehensive examples for testing Amadeus functionality:
 - Docker support for both development and deployment
 
 This is a mature, production-ready application with extensive documentation and example usage patterns.
+
+## Code Quality
+
+### Development Tools
+- **Black**: Code formatting (configured in pyproject.toml)
+- **Ruff**: Fast Python linter (configured in pyproject.toml)
+- **Pytest**: Testing framework with async support
+- **UV**: Fast Python package manager (preferred over pip)
+
+### Project Standards
+- Python 3.11+ required for modern async features
+- Type hints used throughout codebase
+- Comprehensive error handling with retry logic
+- Factory pattern for client instantiation
+- Modular architecture with clear separation of concerns
